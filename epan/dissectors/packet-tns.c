@@ -182,6 +182,8 @@ static int hf_tns_data_tseq;
 static int hf_tns_data_piggyback_id;
 static int hf_tns_data_unused;
 
+static int hf_tns_cursor;
+
 static int hf_tns_data_opi_version2_banner_len;
 static int hf_tns_data_opi_version2_banner;
 static int hf_tns_data_opi_version2_vsnum;
@@ -771,7 +773,7 @@ static void dissect_tns_data(tvbuff_t *tvb, int offset, packet_info *pinfo, prot
 			if((oci_id == 115) || (oci_id == 118)){
 				proto_tree_add_item(data_tree, hf_tns_data_unused, tvb, offset, 1, ENC_NA);
 				offset += 1;
-				guint32 user_len = 0;
+				int user_len = 0;
 				offset += get_sb4_custom(tvb, offset, &user_len);
 			}
 			break;
@@ -981,12 +983,23 @@ static void dissect_tns_data(tvbuff_t *tvb, int offset, packet_info *pinfo, prot
 		}
 
 		case SQLNET_PIGGYBACK_FUNC:
+		{
+			int cursors_len = 0;
 			proto_tree_add_item(data_tree, hf_tns_data_piggyback_id, tvb, offset, 1, ENC_BIG_ENDIAN);
 			offset += 1;
 			proto_tree_add_item(data_tree, hf_tns_data_tseq, tvb, offset, 1, ENC_BIG_ENDIAN);
 			offset += 1;
+			offset += get_sb4_custom(tvb, offset, &cursors_len);
+			// Don't let someone raise it up to UINT32_MAX
+			DISSECTOR_ASSERT(cursors_len <= 255);
+			for(int i = 0; i < cursors_len; i++) {
+				int cursor = 0;
+				int new_offset = get_sb4_custom(tvb, offset, &cursor);
+				proto_tree_add_uint(data_tree, hf_tns_cursor, tvb, offset, new_offset - offset, cursor);
+				offset = new_offset;
+			}
 			break;
-
+		}
 		case SQLNET_SNS:
 		{
 			proto_tree_add_item(data_tree, hf_tns_data_id, tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -1783,6 +1796,10 @@ void proto_register_tns(void)
 
 		{ &hf_tns_data_unused, {
 			"Unused", "tns.data.unused", FT_BYTES, BASE_NONE,
+			NULL, 0x0, NULL, HFILL }},
+
+		{ &hf_tns_cursor, {
+			"Cursor", "tns.data.cursor", FT_UINT32, BASE_DEC,
 			NULL, 0x0, NULL, HFILL }},
 
 		{ &hf_tns_data_setp_acc_version, {
