@@ -544,6 +544,33 @@ static int get_strtype_custom(tvbuff_t *tvb, proto_tree *tree, int offset)
 	return ret;
 }
 
+static int get_sb4_custom(tvbuff_t *tvb, int offset, int *result)
+{
+	uint8_t first_byte = tvb_get_uint8(tvb, offset); // Contains length of a value
+	switch(first_byte)
+	{
+		case 0:
+			*result = 0;
+			break;
+		case 1:
+			*result = tvb_get_uint8(tvb, offset+1);
+			break;
+		case 2:
+			*result = tvb_get_ntohs(tvb, offset+1);
+			break;
+		case 3:
+			*result = tvb_get_ntoh24(tvb, offset+1);
+			break;
+		case 4:
+			*result = tvb_get_ntohl(tvb, offset+1);
+			break;
+		default:
+			DISSECTOR_ASSERT_NOT_REACHED();
+			break;
+	}
+	return first_byte + 1;
+}
+
 static void vsnum_to_vstext_basecustom(char *result, uint32_t vsnum)
 {
 	/*
